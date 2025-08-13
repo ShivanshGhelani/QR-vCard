@@ -61,7 +61,7 @@ app.post('/api/generate-qr', async (req, res) => {
             return res.status(400).json({ error: 'vCard data is required' });
         }
 
-        // Generate QR code as data URL
+        // Generate QR code as data URL with higher error correction for photo data
         const qrDataURL = await QRCode.toDataURL(vCardData, {
             width: 256,
             margin: 2,
@@ -69,7 +69,7 @@ app.post('/api/generate-qr', async (req, res) => {
                 dark: '#000000',
                 light: '#FFFFFF'
             },
-            errorCorrectionLevel: 'M'
+            errorCorrectionLevel: 'H' // Higher error correction for photo data
         });
 
         res.json({ 

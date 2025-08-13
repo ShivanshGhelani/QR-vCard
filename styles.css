@@ -43,6 +43,33 @@ button:active {
     transform: translateY(0);
 }
 
+/* Photo upload styling */
+#photoPreview {
+    transition: all 0.3s ease;
+}
+
+#photoPreview:hover {
+    transform: scale(1.05);
+}
+
+#photoPreview img {
+    transition: all 0.3s ease;
+}
+
+/* File input styling */
+input[type="file"] {
+    cursor: pointer;
+}
+
+/* Photo preview container */
+.photo-upload-container {
+    position: relative;
+}
+
+.photo-upload-container:hover .photo-preview {
+    border-color: #3b82f6;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
     width: 8px;

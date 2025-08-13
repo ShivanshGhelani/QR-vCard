@@ -17,6 +17,8 @@ class VCardGenerator {
         this.clearBtn = document.getElementById('clearBtn');
         this.toast = document.getElementById('toast');
         this.toastMessage = document.getElementById('toastMessage');
+        this.photoPreview = document.getElementById('photoPreview');
+        this.photoInput = document.getElementById('photo');
     }
 
     bindEvents() {
@@ -25,6 +27,13 @@ class VCardGenerator {
         this.downloadBtn.addEventListener('click', () => this.downloadQRCode());
         this.copyBtn.addEventListener('click', () => this.copyVCardData());
         this.testBtn.addEventListener('click', () => this.testAPI());
+        
+        // Photo upload handling
+        this.photoInput.addEventListener('change', (e) => this.handlePhotoUpload(e));
+        
+        // Remove photo button
+        this.removePhotoBtn = document.getElementById('removePhotoBtn');
+        this.removePhotoBtn.addEventListener('click', () => this.removePhoto());
         
         // Real-time validation
         this.form.querySelectorAll('input, textarea').forEach(input => {
@@ -217,6 +226,13 @@ class VCardGenerator {
             vCard += `NOTE:${this.escapeVCardValue(data.notes)}\r\n`;
         }
         
+        // Photo (if available)
+        if (this.currentPhotoData) {
+            // Convert data URL to base64 and add to vCard
+            const base64Data = this.currentPhotoData.split(',')[1];
+            vCard += `PHOTO;ENCODING=BASE64;TYPE=JPEG:${base64Data}\r\n`;
+        }
+        
         // Add creation date
         vCard += `REV:${new Date().toISOString()}\r\n`;
         
@@ -366,12 +382,56 @@ class VCardGenerator {
         }
     }
 
+    handlePhotoUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            this.showToast('Please select a valid image file', 'error');
+            return;
+        }
+
+        // Validate file size (2MB limit)
+        if (file.size > 2 * 1024 * 1024) {
+            this.showToast('Image size should be less than 2MB', 'error');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            // Create image element to get dimensions
+            const img = new Image();
+            img.onload = () => {
+                // Update preview
+                this.photoPreview.innerHTML = `<img src="${e.target.result}" alt="Contact Photo" class="w-full h-full object-cover rounded-full">`;
+                
+                // Store the photo data
+                this.currentPhotoData = e.target.result;
+                
+                // Show remove button
+                this.removePhotoBtn.classList.remove('hidden');
+                
+                this.showToast('Photo uploaded successfully!', 'success');
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
     clearForm() {
         this.form.reset();
         this.qrPlaceholder.classList.remove('hidden');
         this.qrResult.classList.add('hidden');
         this.qrCode.innerHTML = '';
         this.currentVCardData = '';
+        this.currentPhotoData = null;
+        
+        // Reset photo preview
+        this.photoPreview.innerHTML = '<i class="fas fa-user text-gray-400 text-xl"></i>';
+        
+        // Hide remove button
+        this.removePhotoBtn.classList.add('hidden');
         
         // Clear validation errors
         this.form.querySelectorAll('.border-red-500').forEach(field => {
@@ -382,6 +442,22 @@ class VCardGenerator {
         });
         
         this.showToast('Form cleared', 'info');
+    }
+
+    removePhoto() {
+        // Clear photo data
+        this.currentPhotoData = null;
+        
+        // Reset photo input
+        this.photoInput.value = '';
+        
+        // Reset photo preview
+        this.photoPreview.innerHTML = '<i class="fas fa-user text-gray-400 text-xl"></i>';
+        
+        // Hide remove button
+        this.removePhotoBtn.classList.add('hidden');
+        
+        this.showToast('Photo removed', 'info');
     }
 
     async testAPI() {
