@@ -24,6 +24,7 @@ class VCardGenerator {
         this.clearBtn.addEventListener('click', () => this.clearForm());
         this.downloadBtn.addEventListener('click', () => this.downloadQRCode());
         this.copyBtn.addEventListener('click', () => this.copyVCardData());
+        this.testBtn.addEventListener('click', () => this.testAPI());
         
         // Real-time validation
         this.form.querySelectorAll('input, textarea').forEach(input => {
@@ -151,11 +152,12 @@ class VCardGenerator {
         const vCardData = this.generateVCard(formData);
         
         try {
+            console.log('Generating QR code for vCard data:', vCardData);
             await this.generateQRCode(vCardData);
             this.showToast('QR Code generated successfully!', 'success');
         } catch (error) {
             console.error('Error generating QR code:', error);
-            this.showToast('Error generating QR code. Please try again.', 'error');
+            this.showToast(`Error generating QR code: ${error.message}`, 'error');
         }
     }
 
@@ -244,6 +246,8 @@ class VCardGenerator {
             this.qrResult.classList.remove('hidden');
             this.qrCode.classList.add('loading');
             
+            console.log('Making API request to /api/generate-qr');
+            
             // Generate QR code using server API
             const response = await fetch('/api/generate-qr', {
                 method: 'POST',
@@ -253,12 +257,27 @@ class VCardGenerator {
                 body: JSON.stringify({ vCardData })
             });
             
+            console.log('API Response status:', response.status);
+            console.log('API Response headers:', response.headers);
+            
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to generate QR code');
+                const errorText = await response.text();
+                console.error('API Error response:', errorText);
+                let errorData;
+                try {
+                    errorData = JSON.parse(errorText);
+                } catch (e) {
+                    errorData = { error: errorText };
+                }
+                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
             }
             
             const data = await response.json();
+            console.log('API Success response:', data);
+            
+            if (!data.qrCode) {
+                throw new Error('No QR code data received from server');
+            }
             
             // Create image element from data URL
             const img = document.createElement('img');
@@ -267,12 +286,26 @@ class VCardGenerator {
             img.style.maxWidth = '100%';
             img.style.height = 'auto';
             
+            // Add error handling for image loading
+            img.onerror = () => {
+                throw new Error('Failed to load QR code image');
+            };
+            
+            img.onload = () => {
+                console.log('QR code image loaded successfully');
+            };
+            
             this.qrCode.appendChild(img);
             
             // Remove loading state
             this.qrCode.classList.remove('loading');
             
         } catch (error) {
+            console.error('QR Code generation error:', error);
+            // Reset UI state on error
+            this.qrPlaceholder.classList.remove('hidden');
+            this.qrResult.classList.add('hidden');
+            this.qrCode.classList.remove('loading');
             throw new Error('Failed to generate QR code: ' + error.message);
         }
     }
@@ -336,6 +369,46 @@ class VCardGenerator {
         });
         
         this.showToast('Form cleared', 'info');
+    }
+
+    async testAPI() {
+        try {
+            console.log('Testing API endpoints...');
+            
+            // Test health endpoint
+            const healthResponse = await fetch('/api/health');
+            console.log('Health endpoint status:', healthResponse.status);
+            const healthData = await healthResponse.json();
+            console.log('Health endpoint data:', healthData);
+            
+            // Test QR generation endpoint
+            const testResponse = await fetch('/api/test');
+            console.log('Test endpoint status:', testResponse.status);
+            const testData = await testResponse.json();
+            console.log('Test endpoint data:', testData);
+            
+            if (testData.success && testData.qrCode) {
+                // Display test QR code
+                this.qrCode.innerHTML = '';
+                const img = document.createElement('img');
+                img.src = testData.qrCode;
+                img.alt = 'Test QR Code';
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                this.qrCode.appendChild(img);
+                
+                this.qrPlaceholder.classList.add('hidden');
+                this.qrResult.classList.remove('hidden');
+                
+                this.showToast('API test successful! Test QR code generated.', 'success');
+            } else {
+                this.showToast('API test failed: ' + (testData.error || 'Unknown error'), 'error');
+            }
+            
+        } catch (error) {
+            console.error('API test error:', error);
+            this.showToast('API test failed: ' + error.message, 'error');
+        }
     }
 
     showToast(message, type = 'success') {

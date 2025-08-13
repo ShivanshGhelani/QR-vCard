@@ -25,8 +25,13 @@ app.use(helmet({
 // Compression middleware
 app.use(compression());
 
-// CORS middleware
-app.use(cors());
+// CORS middleware with specific configuration
+app.use(cors({
+    origin: ['http://localhost:3000', 'https://*.vercel.app', 'https://*.vercel.app/*'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Parse JSON bodies
 app.use(express.json({ limit: '10mb' }));
@@ -75,8 +80,31 @@ app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        service: 'QR vCard Generator'
+        service: 'QR vCard Generator',
+        environment: process.env.NODE_ENV || 'development',
+        vercel: !!process.env.VERCEL
     });
+});
+
+// Test QR generation endpoint
+app.get('/api/test', async (req, res) => {
+    try {
+        const testData = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Test User\r\nTEL:+1234567890\r\nEMAIL:test@example.com\r\nEND:VCARD';
+        const qrDataURL = await QRCode.toDataURL(testData, {
+            width: 128,
+            margin: 1
+        });
+        res.json({ 
+            success: true, 
+            qrCode: qrDataURL,
+            message: 'Test QR code generated successfully'
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            error: 'Test QR generation failed',
+            details: error.message 
+        });
+    }
 });
 
 // Serve index.html for all routes (SPA)
