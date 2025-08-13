@@ -198,49 +198,32 @@ class VCardGenerator {
 
     async generateQRCodeWithFallback(formData) {
         try {
-            // Strategy 1: Try with ultra-compressed photo
-            let vCardData = this.generateVCard(formData, true);
-            console.log('Attempting QR generation with ultra-compressed photo, vCard size:', vCardData.length);
+            // Generate vCard (photos are now handled as logos, not embedded)
+            let vCardData = this.generateVCard(formData);
+            console.log('Generating QR code with photo as center logo, vCard size:', vCardData.length);
             
             await this.generateQRCode(vCardData);
-            this.showToast('QR Code generated successfully with photo!', 'success');
+            
+            if (this.currentPhotoData) {
+                this.showToast('QR Code generated with your photo as center logo!', 'success');
+            } else {
+                this.showToast('QR Code generated successfully!', 'success');
+            }
             
         } catch (error) {
-            console.log('QR generation with photo failed, trying without photo:', error.message);
+            console.log('QR generation failed, trying minimal vCard:', error.message);
             
-            if (error.message.includes('too big') || error.message.includes('data is too big')) {
-                try {
-                    // Strategy 2: Try without photo
-                    let vCardDataNoPhoto = this.generateVCard(formData, false);
-                    console.log('Attempting QR generation without photo, vCard size:', vCardDataNoPhoto.length);
-                    
-                    await this.generateQRCode(vCardDataNoPhoto);
-                    
-                    if (this.currentPhotoData) {
-                        this.showToast('QR Code generated! (Photo excluded due to size - try a smaller image)', 'info');
-                    } else {
-                        this.showToast('QR Code generated successfully!', 'success');
-                    }
-                    
-                } catch (fallbackError) {
-                    console.log('QR generation failed even without photo, trying minimal vCard:', fallbackError);
-                    
-                    try {
-                        // Strategy 3: Try minimal vCard (only essential fields)
-                        let minimalVCard = this.generateMinimalVCard(formData);
-                        console.log('Attempting QR generation with minimal vCard, size:', minimalVCard.length);
-                        
-                        await this.generateQRCode(minimalVCard);
-                        this.showToast('QR Code generated with essential contact info only!', 'info');
-                        
-                    } catch (minimalError) {
-                        console.error('All QR generation strategies failed:', minimalError);
-                        this.showToast(`Error generating QR code: ${minimalError.message}`, 'error');
-                    }
-                }
-            } else {
-                console.error('QR generation failed with non-size error:', error);
-                this.showToast(`Error generating QR code: ${error.message}`, 'error');
+            try {
+                // Fallback: Try minimal vCard (only essential fields)
+                let minimalVCard = this.generateMinimalVCard(formData);
+                console.log('Attempting QR generation with minimal vCard, size:', minimalVCard.length);
+                
+                await this.generateQRCode(minimalVCard);
+                this.showToast('QR Code generated with essential contact info!', 'info');
+                
+            } catch (minimalError) {
+                console.error('All QR generation strategies failed:', minimalError);
+                this.showToast(`Error generating QR code: ${minimalError.message}`, 'error');
             }
         }
     }
@@ -286,8 +269,9 @@ class VCardGenerator {
         return data;
     }
 
-    generateVCard(data, includePhoto = true) {
+    generateVCard(data) {
         // Create vCard 3.0 format for maximum compatibility
+        // Photos will be handled as QR code logos, not embedded in vCard
         let vCard = 'BEGIN:VCARD\r\n';
         vCard += 'VERSION:3.0\r\n';
         
@@ -331,19 +315,6 @@ class VCardGenerator {
             vCard += `NOTE:${this.escapeVCardValue(data.notes)}\r\n`;
         }
         
-        // Photo (if available and requested)
-        if (includePhoto && this.currentPhotoData) {
-            // Convert data URL to base64 and add to vCard
-            const base64Data = this.currentPhotoData.split(',')[1];
-            // More generous limit since we're ultra-compressing
-            if (base64Data.length < 1000) {
-                vCard += `PHOTO;ENCODING=BASE64;TYPE=JPEG:${base64Data}\r\n`;
-                console.log('Photo included in vCard, base64 length:', base64Data.length);
-            } else {
-                console.log('Photo too large for QR code, excluding from vCard. Size:', base64Data.length);
-            }
-        }
-        
         // Add creation date
         vCard += `REV:${new Date().toISOString()}\r\n`;
         
@@ -376,17 +347,16 @@ class VCardGenerator {
             
             console.log('Making API request to /api/generate-qr');
             
-            // Generate QR code using server API
+            // Generate QR code using server API (without logo for now)
             const response = await fetch('/api/generate-qr', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ vCardData })
+                body: JSON.stringify({ vCardData: vCardData })
             });
             
             console.log('API Response status:', response.status);
-            console.log('API Response headers:', response.headers);
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -407,9 +377,22 @@ class VCardGenerator {
                 throw new Error('No QR code data received from server');
             }
             
+            // If we have a photo, composite it onto the QR code
+            let finalQRCode = data.qrCode;
+            if (this.currentPhotoData) {
+                console.log('Adding logo to QR code...');
+                try {
+                    finalQRCode = await this.addLogoToQR(data.qrCode, this.currentPhotoData);
+                    console.log('Logo added successfully');
+                } catch (logoError) {
+                    console.error('Failed to add logo, using plain QR code:', logoError);
+                    // Continue with plain QR code if logo fails
+                }
+            }
+            
             // Create image element from data URL
             const img = document.createElement('img');
-            img.src = data.qrCode;
+            img.src = finalQRCode;
             img.alt = 'QR Code';
             img.style.maxWidth = '100%';
             img.style.height = 'auto';
@@ -436,6 +419,74 @@ class VCardGenerator {
             this.qrCode.classList.remove('loading');
             throw new Error('Failed to generate QR code: ' + error.message);
         }
+    }
+
+    // Method to composite logo onto QR code using Canvas API
+    async addLogoToQR(qrDataURL, logoDataURL) {
+        return new Promise((resolve, reject) => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                const qrImage = new Image();
+                const logoImage = new Image();
+                
+                let imagesLoaded = 0;
+                const totalImages = 2;
+                
+                const checkIfComplete = () => {
+                    imagesLoaded++;
+                    if (imagesLoaded === totalImages) {
+                        // Set canvas size to match QR code
+                        canvas.width = qrImage.width;
+                        canvas.height = qrImage.height;
+                        
+                        // Draw QR code as background
+                        ctx.drawImage(qrImage, 0, 0);
+                        
+                        // Calculate logo size (about 20% of QR code width, but not more than 120px)
+                        const logoSize = Math.min(qrImage.width * 0.2, 120);
+                        const logoX = (qrImage.width - logoSize) / 2;
+                        const logoY = (qrImage.height - logoSize) / 2;
+                        
+                        // Draw white circle background for logo (slightly larger)
+                        const bgRadius = logoSize / 2 + 6;
+                        const centerX = qrImage.width / 2;
+                        const centerY = qrImage.height / 2;
+                        
+                        ctx.fillStyle = 'white';
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, bgRadius, 0, 2 * Math.PI);
+                        ctx.fill();
+                        
+                        // Create circular clip for logo
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, logoSize / 2, 0, 2 * Math.PI);
+                        ctx.clip();
+                        
+                        // Draw logo
+                        ctx.drawImage(logoImage, logoX, logoY, logoSize, logoSize);
+                        ctx.restore();
+                        
+                        // Return as data URL
+                        resolve(canvas.toDataURL('image/png'));
+                    }
+                };
+                
+                qrImage.onload = checkIfComplete;
+                logoImage.onload = checkIfComplete;
+                
+                qrImage.onerror = () => reject(new Error('Failed to load QR code image'));
+                logoImage.onerror = () => reject(new Error('Failed to load logo image'));
+                
+                qrImage.src = qrDataURL;
+                logoImage.src = logoDataURL;
+                
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     downloadQRCode() {
@@ -526,38 +577,38 @@ class VCardGenerator {
             const img = new Image();
             img.onload = () => {
                 console.log('Image loaded, dimensions:', img.width, 'x', img.height);
-                // Create canvas for resizing if image is too large
+                // Create canvas for resizing for QR logo use
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
-                // Ultra-small dimensions for QR code compatibility
-                const maxSize = 64; // Very small for QR compatibility
+                // Optimal size for QR code center logo
+                const logoSize = 120; // Good size for QR logo visibility
                 let { width, height } = img;
                 
-                // Calculate new dimensions (square thumbnail)
+                // Calculate crop area for square logo (center crop)
                 const size = Math.min(width, height);
                 const startX = (width - size) / 2;
                 const startY = (height - size) / 2;
                 
-                console.log('Creating ultra-compressed thumbnail:', maxSize, 'x', maxSize);
+                console.log('Creating QR logo from image:', logoSize, 'x', logoSize);
                 
-                // Set canvas size for square thumbnail
-                canvas.width = maxSize;
-                canvas.height = maxSize;
+                // Set canvas size for square logo
+                canvas.width = logoSize;
+                canvas.height = logoSize;
                 
                 // Draw cropped and resized image
-                ctx.drawImage(img, startX, startY, size, size, 0, 0, maxSize, maxSize);
+                ctx.drawImage(img, startX, startY, size, size, 0, 0, logoSize, logoSize);
                 
-                // Get ultra-compressed data URL
-                const optimizedDataURL = canvas.toDataURL('image/jpeg', 0.3); // Very high compression
+                // Get logo data URL with good quality (since it's not embedded in vCard)
+                const logoDataURL = canvas.toDataURL('image/png', 0.9); // PNG for better logo quality
                 
-                // Also create a display version for preview (larger, better quality)
+                // Also create a display version for preview
                 const displayCanvas = document.createElement('canvas');
                 const displayCtx = displayCanvas.getContext('2d');
                 displayCanvas.width = 150;
                 displayCanvas.height = 150;
                 displayCtx.drawImage(img, startX, startY, size, size, 0, 0, 150, 150);
-                const displayDataURL = canvas.toDataURL('image/jpeg', 0.7);
+                const displayDataURL = displayCanvas.toDataURL('image/jpeg', 0.8);
                 
                 // Update preview with the display version (better quality for UI)
                 if (this.photoPreview) {
@@ -567,34 +618,18 @@ class VCardGenerator {
                     console.error('Photo preview element not found for update');
                 }
                 
-                // Store the ultra-compressed version for QR code
-                this.currentPhotoData = optimizedDataURL;
+                // Store the logo version for QR code center
+                this.currentPhotoData = logoDataURL;
                 
-                // Check the final compressed size and update UI indicator
-                const base64Data = optimizedDataURL.split(',')[1];
-                console.log('Compressed photo base64 length:', base64Data.length);
-                
+                // Update UI indicator - photos as logos always work!
                 const sizeIndicator = document.getElementById('photoSizeIndicator');
                 if (sizeIndicator) {
                     sizeIndicator.classList.remove('hidden');
-                    
-                    if (base64Data.length < 500) {
-                        sizeIndicator.textContent = '✅ Perfect size for QR code!';
-                        sizeIndicator.className = 'text-green-600';
-                    } else if (base64Data.length < 800) {
-                        sizeIndicator.textContent = '⚠️ Good size - should work in QR code';
-                        sizeIndicator.className = 'text-amber-600';
-                    } else {
-                        sizeIndicator.textContent = '❌ Large size - might be excluded from QR code';
-                        sizeIndicator.className = 'text-red-600';
-                    }
+                    sizeIndicator.textContent = '✅ Perfect! Photo will appear as QR code logo';
+                    sizeIndicator.className = 'text-green-600';
                 }
                 
-                if (base64Data.length > 800) { // Even stricter limit
-                    this.showToast('Photo uploaded! Try a smaller image for better QR compatibility.', 'info');
-                } else {
-                    this.showToast('Photo uploaded and optimized for QR compatibility!', 'success');
-                }
+                this.showToast('Photo uploaded! It will appear as a logo in the center of your QR code.', 'success');
                 
                 // Show remove button
                 if (this.removePhotoBtn) {
