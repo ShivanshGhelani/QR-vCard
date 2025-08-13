@@ -3,8 +3,8 @@
   "name": "qr-vcard-generator",
   "builds": [
     {
-      "src": "*.html",
-      "use": "@vercel/static"
+      "src": "server.js",
+      "use": "@vercel/node"
     }
   ],
   "rewrites": [

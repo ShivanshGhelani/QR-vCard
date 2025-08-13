@@ -18,7 +18,7 @@ This project is optimized for deployment on Vercel. Follow these steps to deploy
 
 ### Step 2: Configure Deployment Settings
 
-The project includes a `vercel.json` file with optimal settings:
+The project includes a `vercel.json` file with optimal settings for Node.js:
 
 ```json
 {
@@ -26,18 +26,18 @@ The project includes a `vercel.json` file with optimal settings:
   "name": "qr-vcard-generator",
   "builds": [
     {
-      "src": "*.html",
-      "use": "@vercel/static"
+      "src": "server.js",
+      "use": "@vercel/node"
     }
   ]
 }
 ```
 
 **No additional configuration needed!** Vercel will automatically:
-- Serve static files from the root directory
-- Handle routing for the SPA
-- Apply security headers
-- Optimize caching for PWA files
+- Build and deploy the Node.js server
+- Handle API endpoints for QR code generation
+- Serve static files and handle SPA routing
+- Apply security headers and optimizations
 
 ### Step 3: Deploy
 

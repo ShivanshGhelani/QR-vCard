@@ -244,16 +244,30 @@ class VCardGenerator {
             this.qrResult.classList.remove('hidden');
             this.qrCode.classList.add('loading');
             
-            // Generate QR code
-            await QRCode.toCanvas(this.qrCode, vCardData, {
-                width: 256,
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#FFFFFF'
+            // Generate QR code using server API
+            const response = await fetch('/api/generate-qr', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                errorCorrectionLevel: 'M'
+                body: JSON.stringify({ vCardData })
             });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate QR code');
+            }
+            
+            const data = await response.json();
+            
+            // Create image element from data URL
+            const img = document.createElement('img');
+            img.src = data.qrCode;
+            img.alt = 'QR Code';
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            
+            this.qrCode.appendChild(img);
             
             // Remove loading state
             this.qrCode.classList.remove('loading');
@@ -264,15 +278,25 @@ class VCardGenerator {
     }
 
     downloadQRCode() {
-        const canvas = this.qrCode.querySelector('canvas');
-        if (!canvas) {
+        const img = this.qrCode.querySelector('img');
+        if (!img) {
             this.showToast('No QR code to download', 'error');
             return;
         }
 
+        // Create canvas to convert image to downloadable format
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        
+        // Draw image on canvas
+        ctx.drawImage(img, 0, 0);
+        
+        // Create download link
         const link = document.createElement('a');
         link.download = 'vcard-qr-code.png';
-        link.href = canvas.toDataURL();
+        link.href = canvas.toDataURL('image/png');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
