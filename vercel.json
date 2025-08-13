@@ -16,10 +16,6 @@
       "destination": "/server.js"
     },
     {
-      "source": "/(.*\\.(js|css|json|png|jpg|jpeg|gif|ico|svg))",
-      "destination": "/$1"
-    },
-    {
       "source": "/(.*)",
       "destination": "/server.js"
     }
