@@ -1,8 +1,46 @@
-/* Custom styles for QR Code vCard Generator */
+/* Custom styles for QR Code vCard Generator - Light Theme */
 
 /* Smooth transitions for all interactive elements */
 * {
     transition: all 0.2s ease-in-out;
+}
+
+/* Light theme optimizations */
+body {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    color: #1f2937;
+}
+
+/* Enhanced form styling */
+input, textarea {
+    background-color: #ffffff;
+    border-color: #e5e7eb;
+    color: #374151;
+}
+
+input:focus, textarea:focus {
+    background-color: #ffffff;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+input::placeholder, textarea::placeholder {
+    color: #9ca3af;
+}
+
+/* Enhanced button styling */
+button {
+    font-weight: 500;
+    letter-spacing: 0.025em;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+button:active {
+    transform: translateY(0);
 }
 
 /* Custom scrollbar */
@@ -38,10 +76,16 @@ button:hover {
 /* QR Code container styling */
 #qrCode {
     background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     display: inline-block;
+    border: 1px solid #f3f4f6;
+}
+
+#qrCode img {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Loading animation for QR generation */
@@ -83,6 +127,43 @@ button:hover {
     
     .grid {
         grid-template-columns: 1fr;
+    }
+    
+    /* Mobile-specific improvements */
+    input, textarea, button {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    #qrCode {
+        padding: 12px;
+        border-radius: 12px;
+    }
+    
+    /* Better touch targets */
+    button {
+        min-height: 44px;
+    }
+}
+
+/* Tablet optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .container {
+        padding: 2rem;
+    }
+    
+    #qrCode {
+        padding: 20px;
+    }
+}
+
+/* Large screen optimizations */
+@media (min-width: 1025px) {
+    .container {
+        max-width: 1200px;
+    }
+    
+    #qrCode {
+        padding: 24px;
     }
 }
 

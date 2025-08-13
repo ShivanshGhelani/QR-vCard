@@ -317,6 +317,19 @@ class VCardGenerator {
             return;
         }
 
+        // Get the full name from the form for the filename
+        const fullName = document.getElementById('fullName').value.trim();
+        let filename = 'vcard-qr-code.png';
+        
+        if (fullName) {
+            // Sanitize the filename by removing special characters and spaces
+            const sanitizedName = fullName
+                .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+                .replace(/\s+/g, '-') // Replace spaces with hyphens
+                .toLowerCase();
+            filename = `${sanitizedName}-qr-code.png`;
+        }
+
         // Create canvas to convert image to downloadable format
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -328,13 +341,13 @@ class VCardGenerator {
         
         // Create download link
         const link = document.createElement('a');
-        link.download = 'vcard-qr-code.png';
+        link.download = filename;
         link.href = canvas.toDataURL('image/png');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        this.showToast('QR Code downloaded successfully!', 'success');
+        this.showToast(`QR Code downloaded as ${filename}!`, 'success');
     }
 
     async copyVCardData() {
