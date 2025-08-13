@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code vCard Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">
+                <i class="fas fa-qrcode text-blue-600 mr-3"></i>
+                QR Code vCard Generator
+            </h1>
+            <p class="text-gray-600 text-lg">Create and share your contact information instantly</p>
+        </header>
+
+        <div class="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8">
+            <!-- Contact Form Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6">
+                    <i class="fas fa-user-edit text-blue-600 mr-2"></i>
+                    Contact Information
+                </h2>
+                
+                <form id="contactForm" class="space-y-4">
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="fullName" class="block text-sm font-medium text-gray-700 mb-1">
+                                Full Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="fullName" name="fullName" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="John Doe">
+                        </div>
+                        
+                        <div>
+                            <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">
+                                Phone Number <span class="text-red-500">*</span>
+                            </label>
+                            <input type="tel" id="phone" name="phone" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="+1 (555) 123-4567">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                            Email Address <span class="text-red-500">*</span>
+                        </label>
+                        <input type="email" id="email" name="email" required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                               placeholder="john.doe@example.com">
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="company" class="block text-sm font-medium text-gray-700 mb-1">
+                                Company Name
+                            </label>
+                            <input type="text" id="company" name="company"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Acme Corporation">
+                        </div>
+                        
+                        <div>
+                            <label for="jobTitle" class="block text-sm font-medium text-gray-700 mb-1">
+                                Job Title
+                            </label>
+                            <input type="text" id="jobTitle" name="jobTitle"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Software Engineer">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="website" class="block text-sm font-medium text-gray-700 mb-1">
+                            Website
+                        </label>
+                        <input type="url" id="website" name="website"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                               placeholder="https://example.com">
+                    </div>
+
+                    <div>
+                        <label for="address" class="block text-sm font-medium text-gray-700 mb-1">
+                            Address
+                        </label>
+                        <textarea id="address" name="address" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  placeholder="123 Main St, City, State 12345"></textarea>
+                    </div>
+
+                    <div>
+                        <label for="notes" class="block text-sm font-medium text-gray-700 mb-1">
+                            Notes (Optional)
+                        </label>
+                        <textarea id="notes" name="notes" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  placeholder="Additional information..."></textarea>
+                    </div>
+
+                    <div class="flex space-x-3 pt-4">
+                        <button type="submit" id="generateBtn"
+                                class="flex-1 bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                            <i class="fas fa-qrcode mr-2"></i>
+                            Generate QR Code
+                        </button>
+                        <button type="button" id="clearBtn"
+                                class="px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                            <i class="fas fa-undo mr-2"></i>
+                            Clear
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- QR Code Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6">
+                    <i class="fas fa-qrcode text-green-600 mr-2"></i>
+                    QR Code
+                </h2>
+                
+                <div id="qrContainer" class="text-center">
+                    <div id="qrPlaceholder" class="py-12">
+                        <i class="fas fa-qrcode text-gray-300 text-6xl mb-4"></i>
+                        <p class="text-gray-500">Fill out the form and click "Generate QR Code" to create your vCard QR code</p>
+                    </div>
+                    
+                    <div id="qrResult" class="hidden">
+                        <div id="qrCode" class="mb-4 flex justify-center"></div>
+                        <div class="space-y-3">
+                            <button id="downloadBtn" 
+                                    class="w-full bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors">
+                                <i class="fas fa-download mr-2"></i>
+                                Download QR Code
+                            </button>
+                            <button id="copyBtn"
+                                    class="w-full bg-gray-600 text-white py-3 px-6 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                                <i class="fas fa-copy mr-2"></i>
+                                Copy vCard Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions Section -->
+        <div class="max-w-4xl mx-auto mt-8">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                <h3 class="text-xl font-semibold text-blue-800 mb-4">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    How to Use
+                </h3>
+                <div class="grid md:grid-cols-3 gap-6 text-sm">
+                    <div class="text-center">
+                        <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-blue-600 font-bold">1</span>
+                        </div>
+                        <h4 class="font-semibold text-blue-800 mb-2">Fill Form</h4>
+                        <p class="text-blue-700">Enter your contact information in the form fields</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-blue-600 font-bold">2</span>
+                        </div>
+                        <h4 class="font-semibold text-blue-800 mb-2">Generate QR</h4>
+                        <p class="text-blue-700">Click "Generate QR Code" to create your vCard QR code</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-blue-600 font-bold">3</span>
+                        </div>
+                        <h4 class="font-semibold text-blue-800 mb-2">Share & Scan</h4>
+                        <p class="text-blue-700">Download and share the QR code. Anyone can scan it to save your contact</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-md shadow-lg transform translate-x-full transition-transform duration-300 z-50">
+        <div class="flex items-center">
+            <i class="fas fa-check-circle mr-2"></i>
+            <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 
