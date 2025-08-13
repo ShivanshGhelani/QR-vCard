@@ -19,6 +19,18 @@ class VCardGenerator {
         this.toastMessage = document.getElementById('toastMessage');
         this.photoPreview = document.getElementById('photoPreview');
         this.photoInput = document.getElementById('photo');
+        
+        // Debug logging
+        console.log('VCardGenerator initialized');
+        console.log('Photo input found:', !!this.photoInput);
+        console.log('Photo preview found:', !!this.photoPreview);
+        
+        if (!this.photoInput) {
+            console.error('Photo input element not found!');
+        }
+        if (!this.photoPreview) {
+            console.error('Photo preview element not found!');
+        }
     }
 
     bindEvents() {
@@ -26,14 +38,26 @@ class VCardGenerator {
         this.clearBtn.addEventListener('click', () => this.clearForm());
         this.downloadBtn.addEventListener('click', () => this.downloadQRCode());
         this.copyBtn.addEventListener('click', () => this.copyVCardData());
-        this.testBtn.addEventListener('click', () => this.testAPI());
+        
+        // Test button (optional)
+        this.testBtn = document.getElementById('testBtn');
+        if (this.testBtn) {
+            this.testBtn.addEventListener('click', () => this.testAPI());
+        }
         
         // Photo upload handling
-        this.photoInput.addEventListener('change', (e) => this.handlePhotoUpload(e));
+        if (this.photoInput) {
+            console.log('Binding change event to photo input');
+            this.photoInput.addEventListener('change', (e) => this.handlePhotoUpload(e));
+        } else {
+            console.error('Cannot bind photo input - element not found');
+        }
         
         // Remove photo button
         this.removePhotoBtn = document.getElementById('removePhotoBtn');
-        this.removePhotoBtn.addEventListener('click', () => this.removePhoto());
+        if (this.removePhotoBtn) {
+            this.removePhotoBtn.addEventListener('click', () => this.removePhoto());
+        }
         
         // Real-time validation
         this.form.querySelectorAll('input, textarea').forEach(input => {
@@ -149,25 +173,101 @@ class VCardGenerator {
         return isValid;
     }
 
-    async handleFormSubmit(e) {
+    handleFormSubmit(e) {
         e.preventDefault();
 
+        console.log('Form submitted');
+        
         if (!this.validateForm()) {
             this.showToast('Please fix the errors in the form', 'error');
             return;
         }
 
-        const formData = this.getFormData();
-        const vCardData = this.generateVCard(formData);
-        
         try {
-            console.log('Generating QR code for vCard data:', vCardData);
-            await this.generateQRCode(vCardData);
-            this.showToast('QR Code generated successfully!', 'success');
+            const formData = this.getFormData();
+            console.log('Form data retrieved:', formData);
+            
+            // Try to generate QR code with smart fallback
+            this.generateQRCodeWithFallback(formData);
+            
         } catch (error) {
-            console.error('Error generating QR code:', error);
-            this.showToast(`Error generating QR code: ${error.message}`, 'error');
+            console.error('Form submission error:', error);
+            this.showToast(`Error processing form: ${error.message}`, 'error');
         }
+    }
+
+    async generateQRCodeWithFallback(formData) {
+        try {
+            // Strategy 1: Try with ultra-compressed photo
+            let vCardData = this.generateVCard(formData, true);
+            console.log('Attempting QR generation with ultra-compressed photo, vCard size:', vCardData.length);
+            
+            await this.generateQRCode(vCardData);
+            this.showToast('QR Code generated successfully with photo!', 'success');
+            
+        } catch (error) {
+            console.log('QR generation with photo failed, trying without photo:', error.message);
+            
+            if (error.message.includes('too big') || error.message.includes('data is too big')) {
+                try {
+                    // Strategy 2: Try without photo
+                    let vCardDataNoPhoto = this.generateVCard(formData, false);
+                    console.log('Attempting QR generation without photo, vCard size:', vCardDataNoPhoto.length);
+                    
+                    await this.generateQRCode(vCardDataNoPhoto);
+                    
+                    if (this.currentPhotoData) {
+                        this.showToast('QR Code generated! (Photo excluded due to size - try a smaller image)', 'info');
+                    } else {
+                        this.showToast('QR Code generated successfully!', 'success');
+                    }
+                    
+                } catch (fallbackError) {
+                    console.log('QR generation failed even without photo, trying minimal vCard:', fallbackError);
+                    
+                    try {
+                        // Strategy 3: Try minimal vCard (only essential fields)
+                        let minimalVCard = this.generateMinimalVCard(formData);
+                        console.log('Attempting QR generation with minimal vCard, size:', minimalVCard.length);
+                        
+                        await this.generateQRCode(minimalVCard);
+                        this.showToast('QR Code generated with essential contact info only!', 'info');
+                        
+                    } catch (minimalError) {
+                        console.error('All QR generation strategies failed:', minimalError);
+                        this.showToast(`Error generating QR code: ${minimalError.message}`, 'error');
+                    }
+                }
+            } else {
+                console.error('QR generation failed with non-size error:', error);
+                this.showToast(`Error generating QR code: ${error.message}`, 'error');
+            }
+        }
+    }
+
+    generateMinimalVCard(data) {
+        // Ultra-minimal vCard with only essential info
+        let vCard = 'BEGIN:VCARD\r\n';
+        vCard += 'VERSION:3.0\r\n';
+        
+        // Only include essential fields
+        if (data.fullName) {
+            vCard += `FN:${this.escapeVCardValue(data.fullName)}\r\n`;
+        }
+        
+        if (data.phone) {
+            const cleanPhone = data.phone.replace(/[\s\-\(\)\.]/g, '');
+            vCard += `TEL:${cleanPhone}\r\n`;
+        }
+        
+        if (data.email) {
+            vCard += `EMAIL:${data.email}\r\n`;
+        }
+        
+        vCard += 'END:VCARD';
+        
+        console.log('Generated minimal vCard length:', vCard.length);
+        return vCard;
     }
 
     getFormData() {
@@ -175,13 +275,18 @@ class VCardGenerator {
         const data = {};
         
         for (let [key, value] of formData.entries()) {
-            data[key] = value.trim();
+            // Skip file inputs or handle them separately
+            if (value instanceof File) {
+                // Skip file inputs in form data - we handle photos separately
+                continue;
+            }
+            data[key] = typeof value === 'string' ? value.trim() : value;
         }
         
         return data;
     }
 
-    generateVCard(data) {
+    generateVCard(data, includePhoto = true) {
         // Create vCard 3.0 format for maximum compatibility
         let vCard = 'BEGIN:VCARD\r\n';
         vCard += 'VERSION:3.0\r\n';
@@ -226,11 +331,17 @@ class VCardGenerator {
             vCard += `NOTE:${this.escapeVCardValue(data.notes)}\r\n`;
         }
         
-        // Photo (if available)
-        if (this.currentPhotoData) {
+        // Photo (if available and requested)
+        if (includePhoto && this.currentPhotoData) {
             // Convert data URL to base64 and add to vCard
             const base64Data = this.currentPhotoData.split(',')[1];
-            vCard += `PHOTO;ENCODING=BASE64;TYPE=JPEG:${base64Data}\r\n`;
+            // More generous limit since we're ultra-compressing
+            if (base64Data.length < 1000) {
+                vCard += `PHOTO;ENCODING=BASE64;TYPE=JPEG:${base64Data}\r\n`;
+                console.log('Photo included in vCard, base64 length:', base64Data.length);
+            } else {
+                console.log('Photo too large for QR code, excluding from vCard. Size:', base64Data.length);
+            }
         }
         
         // Add creation date
@@ -239,6 +350,7 @@ class VCardGenerator {
         vCard += 'END:VCARD';
         
         this.currentVCardData = vCard;
+        console.log('Generated vCard total length:', vCard.length);
         return vCard;
     }
 
@@ -383,39 +495,127 @@ class VCardGenerator {
     }
 
     handlePhotoUpload(event) {
+        console.log('handlePhotoUpload called', event);
         const file = event.target.files[0];
-        if (!file) return;
+        if (!file) {
+            console.log('No file selected');
+            return;
+        }
+
+        console.log('File selected:', file.name, file.type, file.size);
 
         // Validate file type
-        if (!file.type.startsWith('image/')) {
-            this.showToast('Please select a valid image file', 'error');
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            console.error('Invalid file type:', file.type);
+            this.showToast('Please select a valid image file (JPG, PNG, GIF, WebP)', 'error');
             return;
         }
 
         // Validate file size (2MB limit)
         if (file.size > 2 * 1024 * 1024) {
+            console.error('File too large:', file.size);
             this.showToast('Image size should be less than 2MB', 'error');
             return;
         }
 
         const reader = new FileReader();
         reader.onload = (e) => {
-            // Create image element to get dimensions
+            console.log('File read successfully');
+            // Create image element to validate and resize if needed
             const img = new Image();
             img.onload = () => {
-                // Update preview
-                this.photoPreview.innerHTML = `<img src="${e.target.result}" alt="Contact Photo" class="w-full h-full object-cover rounded-full">`;
+                console.log('Image loaded, dimensions:', img.width, 'x', img.height);
+                // Create canvas for resizing if image is too large
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
                 
-                // Store the photo data
-                this.currentPhotoData = e.target.result;
+                // Ultra-small dimensions for QR code compatibility
+                const maxSize = 64; // Very small for QR compatibility
+                let { width, height } = img;
+                
+                // Calculate new dimensions (square thumbnail)
+                const size = Math.min(width, height);
+                const startX = (width - size) / 2;
+                const startY = (height - size) / 2;
+                
+                console.log('Creating ultra-compressed thumbnail:', maxSize, 'x', maxSize);
+                
+                // Set canvas size for square thumbnail
+                canvas.width = maxSize;
+                canvas.height = maxSize;
+                
+                // Draw cropped and resized image
+                ctx.drawImage(img, startX, startY, size, size, 0, 0, maxSize, maxSize);
+                
+                // Get ultra-compressed data URL
+                const optimizedDataURL = canvas.toDataURL('image/jpeg', 0.3); // Very high compression
+                
+                // Also create a display version for preview (larger, better quality)
+                const displayCanvas = document.createElement('canvas');
+                const displayCtx = displayCanvas.getContext('2d');
+                displayCanvas.width = 150;
+                displayCanvas.height = 150;
+                displayCtx.drawImage(img, startX, startY, size, size, 0, 0, 150, 150);
+                const displayDataURL = canvas.toDataURL('image/jpeg', 0.7);
+                
+                // Update preview with the display version (better quality for UI)
+                if (this.photoPreview) {
+                    this.photoPreview.innerHTML = `<img src="${displayDataURL}" alt="Contact Photo" class="w-full h-full object-cover rounded-full">`;
+                    console.log('Photo preview updated');
+                } else {
+                    console.error('Photo preview element not found for update');
+                }
+                
+                // Store the ultra-compressed version for QR code
+                this.currentPhotoData = optimizedDataURL;
+                
+                // Check the final compressed size and update UI indicator
+                const base64Data = optimizedDataURL.split(',')[1];
+                console.log('Compressed photo base64 length:', base64Data.length);
+                
+                const sizeIndicator = document.getElementById('photoSizeIndicator');
+                if (sizeIndicator) {
+                    sizeIndicator.classList.remove('hidden');
+                    
+                    if (base64Data.length < 500) {
+                        sizeIndicator.textContent = '✅ Perfect size for QR code!';
+                        sizeIndicator.className = 'text-green-600';
+                    } else if (base64Data.length < 800) {
+                        sizeIndicator.textContent = '⚠️ Good size - should work in QR code';
+                        sizeIndicator.className = 'text-amber-600';
+                    } else {
+                        sizeIndicator.textContent = '❌ Large size - might be excluded from QR code';
+                        sizeIndicator.className = 'text-red-600';
+                    }
+                }
+                
+                if (base64Data.length > 800) { // Even stricter limit
+                    this.showToast('Photo uploaded! Try a smaller image for better QR compatibility.', 'info');
+                } else {
+                    this.showToast('Photo uploaded and optimized for QR compatibility!', 'success');
+                }
                 
                 // Show remove button
-                this.removePhotoBtn.classList.remove('hidden');
-                
-                this.showToast('Photo uploaded successfully!', 'success');
+                if (this.removePhotoBtn) {
+                    this.removePhotoBtn.classList.remove('hidden');
+                    console.log('Remove button shown');
+                }
             };
+            
+            img.onerror = () => {
+                console.error('Failed to load image');
+                this.showToast('Failed to load image. Please try a different file.', 'error');
+            };
+            
             img.src = e.target.result;
         };
+        
+        reader.onerror = () => {
+            console.error('Failed to read file');
+            this.showToast('Failed to read file. Please try again.', 'error');
+        };
+        
         reader.readAsDataURL(file);
     }
 
@@ -431,7 +631,9 @@ class VCardGenerator {
         this.photoPreview.innerHTML = '<i class="fas fa-user text-gray-400 text-xl"></i>';
         
         // Hide remove button
-        this.removePhotoBtn.classList.add('hidden');
+        if (this.removePhotoBtn) {
+            this.removePhotoBtn.classList.add('hidden');
+        }
         
         // Clear validation errors
         this.form.querySelectorAll('.border-red-500').forEach(field => {
@@ -454,8 +656,15 @@ class VCardGenerator {
         // Reset photo preview
         this.photoPreview.innerHTML = '<i class="fas fa-user text-gray-400 text-xl"></i>';
         
-        // Hide remove button
-        this.removePhotoBtn.classList.add('hidden');
+        // Hide remove button and size indicator
+        if (this.removePhotoBtn) {
+            this.removePhotoBtn.classList.add('hidden');
+        }
+        
+        const sizeIndicator = document.getElementById('photoSizeIndicator');
+        if (sizeIndicator) {
+            sizeIndicator.classList.add('hidden');
+        }
         
         this.showToast('Photo removed', 'info');
     }
@@ -534,15 +743,30 @@ class VCardGenerator {
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new VCardGenerator();
+    console.log('DOM Content Loaded');
+    window.vCardGenerator = new VCardGenerator();
     
+    // Temporarily disable service worker during development
     // Add service worker for PWA functionality (optional)
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => console.log('SW registered'))
-            .catch(error => console.log('SW registration failed'));
-    }
+    // if ('serviceWorker' in navigator) {
+    //     navigator.serviceWorker.register('/sw.js')
+    //         .then(registration => console.log('SW registered'))
+    //         .catch(error => console.log('SW registration failed'));
+    // }
 });
+
+// Global fallback function for photo upload button
+window.choosePhoto = function() {
+    console.log('Global choosePhoto function called');
+    const photoInput = document.getElementById('photo');
+    if (photoInput) {
+        console.log('Photo input found, triggering click');
+        photoInput.click();
+    } else {
+        console.error('Photo input not found');
+        alert('Photo input not found. Please refresh the page.');
+    }
+};
 
 // Add keyboard shortcuts
 document.addEventListener('keydown', (e) => {

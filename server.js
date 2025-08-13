@@ -17,7 +17,7 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://vercel.live"],
             fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
             imgSrc: ["'self'", "data:", "blob:"],
-            connectSrc: ["'self'"]
+            connectSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"]
         }
     }
 }));
@@ -61,21 +61,58 @@ app.post('/api/generate-qr', async (req, res) => {
             return res.status(400).json({ error: 'vCard data is required' });
         }
 
-        // Generate QR code as data URL with higher error correction for photo data
-        const qrDataURL = await QRCode.toDataURL(vCardData, {
-            width: 256,
+        console.log('Generating QR code for vCard data length:', vCardData.length);
+
+        // Dynamic settings based on data size
+        let qrOptions = {
             margin: 2,
             color: {
                 dark: '#000000',
                 light: '#FFFFFF'
-            },
-            errorCorrectionLevel: 'H' // Higher error correction for photo data
-        });
+            }
+        };
+
+        // Adjust QR code settings based on data size
+        if (vCardData.length > 3000) {
+            // Large data - use maximum size and lowest error correction
+            qrOptions.width = 1024;
+            qrOptions.errorCorrectionLevel = 'L';
+        } else if (vCardData.length > 2000) {
+            // Medium data - balanced settings
+            qrOptions.width = 768;
+            qrOptions.errorCorrectionLevel = 'M';
+        } else if (vCardData.length > 1000) {
+            // Moderate data - good quality
+            qrOptions.width = 512;
+            qrOptions.errorCorrectionLevel = 'Q';
+        } else {
+            // Small data - highest quality
+            qrOptions.width = 512;
+            qrOptions.errorCorrectionLevel = 'H';
+        }
+
+        // Check if data is within reasonable limits (QR codes can handle up to ~7000 chars with low error correction)
+        if (vCardData.length > 6000) {
+            return res.status(400).json({ 
+                error: 'The amount of data is too big to be stored in a QR Code',
+                details: `Data size: ${vCardData.length} characters (max: 6000)`
+            });
+        }
+
+        console.log(`Using QR settings: ${qrOptions.width}px, error correction: ${qrOptions.errorCorrectionLevel}`);
+
+        // Generate QR code as data URL
+        const qrDataURL = await QRCode.toDataURL(vCardData, qrOptions);
 
         res.json({ 
             success: true, 
             qrCode: qrDataURL,
-            message: 'QR code generated successfully'
+            message: 'QR code generated successfully',
+            dataSize: vCardData.length,
+            qrSettings: {
+                width: qrOptions.width,
+                errorCorrection: qrOptions.errorCorrectionLevel
+            }
         });
 
     } catch (error) {
